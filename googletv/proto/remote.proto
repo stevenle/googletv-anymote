@@ -1,0 +1,128 @@
+/*
+ * Copyright (C) 2009 Google Inc.  All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Definition of the remote protocol messages.
+
+syntax = "proto2";
+
+option java_outer_classname = "Messages";
+option java_package = "com.google.anymote";
+option optimize_for = LITE_RUNTIME;
+
+//
+// HIGH LEVEL MESSAGE CONTAINERS
+//
+
+import "keycodes.proto";
+
+message RemoteMessage {
+  // Optional sequence number. If present in the message with request_message
+  // present, the other end will reply with response_message with the same
+  // sequence_number
+  optional uint32 sequence_number = 1;
+  // Message for a request
+  optional RequestMessage request_message = 2;
+  // Message for a response
+  optional ResponseMessage response_message = 3;
+}
+
+message RequestMessage {
+  // Message for a key event
+  optional KeyEvent key_event_message = 1;
+  // Message for a mouse movement
+  optional MouseEvent mouse_event_message = 2;
+  // Message for a mouse wheel event
+  optional MouseWheel mouse_wheel_message = 3;
+  // Message containing data
+  optional Data data_message = 4;
+  // Message send upon connection
+  optional Connect connect_message = 5;
+  // Fling message
+  optional Fling fling_message = 6;
+}
+
+message ResponseMessage {
+  // Data message
+  optional Data data_message = 1;
+  // Fling result
+  optional FlingResult fling_result_message = 3;
+}
+
+//
+// REQUEST MESSAGES
+//
+
+// Sends a key event to the server
+message KeyEvent {
+  // Key code
+  required Code keycode = 1;
+  // Action (Up/Down)
+  required Action action = 2;
+}
+
+// Sends a mouse event to the server
+message MouseEvent {
+  // Relative movement of the cursor on the xAxis
+  required int32 x_delta = 1;
+  // Relative movement of the cursor on the yAxis
+  required int32 y_delta = 2;
+}
+
+// Sends a mouse wheel to the server
+message MouseWheel {
+  // Scrolling along the x-axis
+  required int32 x_scroll = 1;
+  // Scrolling along the y-axis
+  required int32 y_scroll = 2;
+}
+
+message Connect {
+  // Remote device name
+  required string device_name = 1;
+  // Version number for a given device software
+  optional int32 version = 2;
+}
+
+message Fling {
+  // Flinged URI
+  required string uri = 1;
+}
+
+//
+// RESPONSE MESSAGES
+//
+
+//
+// TWO-WAY MESSAGES
+//
+
+// Sends a string and a type to interpret this string
+message Data {
+  // The type of data sent to the box
+  required string type = 1;
+  // The data sent to the box
+  required string data = 2;
+}
+
+// Result of the fling request execution:
+message FlingResult {
+  enum Result {
+    SUCCESS = 0;
+    FAILURE = 1;
+  }
+  // Status
+  required Result result = 1;
+}
