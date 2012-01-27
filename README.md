@@ -1,4 +1,4 @@
-# Google TV: Python implementation of Pairing Protocol and Anymote Protocol #
+# Python clients for the Google TV Pairing and Anymote protocols. #
 
 ## Installation ##
 
