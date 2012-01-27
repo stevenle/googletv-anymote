@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Python clients for the Google TV Pairing and Anymote protocols."""
+"""Python client for the Google TV Pairing and Anymote protocols."""
 
 __author__ = 'stevenle08@gmail.com (Steven Le)'
 
