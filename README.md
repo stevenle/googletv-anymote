@@ -15,7 +15,7 @@ If you're not sure what IP address or hostname your Google TV is running on, you
 can use the "discover" script to determine its IP and port. The script requires
 [pybonjour](http://code.google.com/p/pybonjour/).
 
-    googletv/scripts$ ./discover
+    googletv/scripts$ ./discover.py
 
 (Only tested on Mac.)
 
@@ -34,8 +34,28 @@ The Pairing Protocol server typically runs on the port one more than the Anymote
 server. For example, if the Anymore server is on 9551, then the Pairing Protocol
 server listens on 9552.
 
-    googletv/scripts$ ./pair --cert=mycert.pem
+    googletv/scripts$ ./pair.py --host=NSZGT1-6131194.local --cert=cert.pem
 
 ## Anymote Protocol ##
 
-TBD
+After the certificate has been paired with Google TV, the certificate can be
+used to send messages to Google TV via the Anymote Protocol.
+
+Example, fling a URI to Google TV:
+
+```python
+import googletv
+
+HOST = 'NSZGT1-6131194.local'
+CERT = 'cert.pem'
+
+
+def main():
+  uri = 'http://www.google.com'
+  with googletv.AnymoteProtocol(HOST, CERT) as gtv:
+    gtv.fling(uri)
+
+
+if __name__ == '__main__':
+  main()
+```
