@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Description."""
+"""Flings a URI to a Google TV server."""
 
 __author__ = 'stevenle08@gmail.com (Steven Le)'
 
