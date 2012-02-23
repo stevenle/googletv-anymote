@@ -21,6 +21,7 @@ __author__ = 'stevenle08@gmail.com (Steven Le)'
 import socket
 import ssl
 import struct
+from googletv.proto import keycodes_pb2
 from googletv.proto import polo_pb2
 from googletv.proto import remote_pb2
 
@@ -53,13 +54,13 @@ class BaseProtocol(object):
   def __enter__(self):
     return self
 
-  def __exit__(self):
-    self.Close()
+  def __exit__(self, unused_type, unused_val, unused_traceback):
+    self.close()
 
-  def Close(self):
+  def close(self):
     self.ssl.close()
 
-  def Send(self, data):
+  def send(self, data):
     data_len = struct.pack('!I', len(data))
     sent = self.ssl.write(data_len + data)
     assert sent == len(data) + 4
@@ -70,13 +71,13 @@ class PairingProtocol(BaseProtocol):
   """Google TV Pairing Protocol.
 
   More info:
-    http://code.google.com/tv/remote/docs/pairing.html
+    https://developers.google.com/tv/remote/docs/pairing
   """
 
   def __init__(self, host, certfile, port=9552):
     super(PairingProtocol, self).__init__(host, port, certfile)
 
-  def SendPairingRequest(self, client_name, service_name='AnyMote'):
+  def send_pairing_request(self, client_name, service_name='AnyMote'):
     """Initiates a new PairingRequest with the Google TV server.
 
     Args:
@@ -86,9 +87,9 @@ class PairingProtocol(BaseProtocol):
     req = polo_pb2.PairingRequest()
     req.service_name = service_name
     req.client_name = client_name
-    self._SendMessage(req, polo_pb2.OuterMessage.MESSAGE_TYPE_PAIRING_REQUEST)
+    self._send_message(req, polo_pb2.OuterMessage.MESSAGE_TYPE_PAIRING_REQUEST)
 
-  def SendOptions(self, *args, **kwargs):
+  def send_options(self, *args, **kwargs):
     """Sends an Options message to the Google TV server.
 
     Currently, only a 4-length HEXADECIMAL message is supported. Will support
@@ -98,10 +99,10 @@ class PairingProtocol(BaseProtocol):
     encoding = options.input_encodings.add()
     encoding.type = ENCODING_TYPE_HEXADECIMAL
     encoding.symbol_length = 4
-    self._SendMessage(options, polo_pb2.OuterMessage.MESSAGE_TYPE_OPTIONS)
+    self._send_message(options, polo_pb2.OuterMessage.MESSAGE_TYPE_OPTIONS)
 
-  def SendConfiguration(self, encoding_type=ENCODING_TYPE_HEXADECIMAL,
-                        symbol_length=4, client_role=ROLE_TYPE_INPUT):
+  def send_configuration(self, encoding_type=ENCODING_TYPE_HEXADECIMAL,
+                         symbol_length=4, client_role=ROLE_TYPE_INPUT):
     """Sends a Configuration message to the Google TV server.
 
     Currently, only a 4-length HEXADECIMAL message is supported. Will support
@@ -111,19 +112,19 @@ class PairingProtocol(BaseProtocol):
     req.encoding.type = encoding_type
     req.encoding.symbol_length = symbol_length
     req.client_role = client_role
-    self._SendMessage(req, polo_pb2.OuterMessage.MESSAGE_TYPE_CONFIGURATION)
+    self._send_message(req, polo_pb2.OuterMessage.MESSAGE_TYPE_CONFIGURATION)
 
-  def SendSecret(self, code):
+  def send_secret(self, code):
     """Sends a Secret message to the Google TV server.
 
     Args:
       code: Hex code string displayed by the Google TV.
     """
     req = polo_pb2.Secret()
-    req.secret = self._EncodeHexSecret(code)
-    self._SendMessage(req, polo_pb2.OuterMessage.MESSAGE_TYPE_SECRET)
+    req.secret = self._encode_hex_secret(code)
+    self._send_message(req, polo_pb2.OuterMessage.MESSAGE_TYPE_SECRET)
 
-  def _EncodeHexSecret(self, secret):
+  def _encode_hex_secret(self, secret):
     """Encodes a hex secret.
 
     Args:
@@ -141,10 +142,10 @@ class PairingProtocol(BaseProtocol):
     for i in xrange(len(result)):
       start_index = 2 * i
       end_index = 2 * (i + 1)
-      result[i] = int(code[start_index:end_index], 16)
+      result[i] = int(secret[start_index:end_index], 16)
     return bytes(result)
 
-  def _SendMessage(self, message, message_type):
+  def _send_message(self, message, message_type):
     """Sends a message to the Google TV server.
 
     Args:
@@ -160,11 +161,66 @@ class PairingProtocol(BaseProtocol):
     req.type = message_type
     req.payload = message.SerializeToString()
     data = req.SerializeToString()
-    return self.Send(data)
+    return self.send(data)
 
 
 class AnymoteProtocol(BaseProtocol):
+  """Google TV Anymote Protocol.
 
-  def __init__(self):
-    # Work in progress...
-    raise NotImplementedError
+  More info:
+    https://developers.google.com/tv/remote/docs/
+  """
+
+  def __init__(self, host, certfile, port=9551):
+    super(AnymoteProtocol, self).__init__(host, port, certfile)
+
+  def keycode(self, keycode, action):
+    """Sends a KeyCode event to Google TV.
+
+    Args:
+      keycode: A Code from keycodes_pb2.
+      action: Either "down" (pressed) or "up" (released).
+    """
+    req = remote_pb2.RequestMessage()
+    req.key_event_message.keycode = keycode
+    if action == 'up':
+      req.key_event_message.action = keycodes_pb2.UP
+    else:
+      req.key_event_message.action = keycodes_pb2.DOWN
+    self._send_message(req)
+
+  def fling(self, uri):
+    """Sends a Fling event to Google TV.
+
+    Use a Fling event to request Google TV to start an activity associated with
+    the specified URI.
+
+    Args:
+      uri: URI to send to Google TV.
+    """
+    req = remote_pb2.RequestMessage()
+    req.fling_message.uri = uri
+    self._send_message(req)
+
+  def mouse(self, x=0, y=0):
+    """Sends a MouseEvent to Google TV.
+
+    Args:
+      x: Relative movement of the cursor on the x-axis.
+      y: Relative movement of the cursor on the y-axis.
+    """
+    req = remote_pb2.RequestMessage()
+    req.mouse_event_message.x_delta = x
+    req.mouse_event_message.y_delta = y
+    self._send_message(req)
+
+  def _send_message(self, message):
+    """Sends a RequestMessage wrapped in a RemoteMessage.
+
+    Args:
+      message: A remote_pb2.RequestMessage object.
+    """
+    req = remote_pb2.RemoteMessage()
+    req.request_message.CopyFrom(message)
+    data = req.SerializeToString()
+    return self.send(data)

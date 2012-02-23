@@ -27,18 +27,32 @@ import sys
 import googletv
 
 
-def GetParser():
+def get_parser():
   """Creates an optparse.OptionParser object used by this script."""
-  usage = 'Usage: %prog [--cert=<certfile>] <host> [port (default=9552)]'
+  usage = 'Usage: %prog [--host=] [--port=9552] [--cert=cert.pem]'
   parser = optparse.OptionParser(usage=usage)
+
   parser.add_option(
       '--cert',
+      default='cert.pem',
       help='Path to cert file.')
+
+  parser.add_option(
+      '--host',
+      default='NSZGT1-6131194.local',
+      help='Host of the Google TV server.')
+
+  parser.add_option(
+      '--port',
+      default=9552,
+      type='int',
+      help='Port number.')
+
   return parser
 
 
-def GenerateCert(filename, country='US', state='CA', city='Mountain View',
-                 cn='anymote\/python\/googletv'):
+def generate_cert(filename, country='US', state='CA', city='Mountain View',
+                  cn='anymote\/python\/googletv'):
   """Generates a self-signed certificate."""
   kwargs = {
       'city': city,
@@ -58,22 +72,26 @@ def GenerateCert(filename, country='US', state='CA', city='Mountain View',
 
 
 def main():
-  parser = GetParser()
-  options, args = parser.parse_args()
-
-  if not args:
-    sys.exit(parser.usage)
-
-  host = args[0]
-  port = int(args[1]) if len(args) > 1 else 9552
-
-  cert = options.cert or 'mycert.pem'
+  parser = get_parser()
+  options = parser.parse_args()[0]
+  host = options.host
+  port = options.port
+  cert = options.cert
   if not os.path.isfile(cert):
-    GenerateCert(cert)
+    generate_cert(cert)
 
+  print 'Initiating pairing...'
   with googletv.PairingProtocol(host, cert, port=port) as gtv:
-    print 'Initiating pairing...'
-    print gtv
+    client_name = raw_input('Client name: ')
+    gtv.send_pairing_request(client_name)
+    gtv.send_options()
+    gtv.send_configuration()
+    code = raw_input('Code from Google TV: ')
+    gtv.send_secret(code)
+
+  # TODO(stevenle): Need to verify a response from Google TV that indicates
+  # successful pairing.
+  print 'Done!'
 
 
 if __name__ == '__main__':
