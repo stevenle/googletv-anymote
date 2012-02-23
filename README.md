@@ -31,8 +31,8 @@ cert that you can use. [OpenSSL](http://www.openssl.org/) is required for
 certificate generation.
 
 The Pairing Protocol server typically runs on the port one more than the Anymote
-server. For example, if the Anymore server is on 9551, then the Pairing Protocol
-server listens on 9552.
+server. For example, if the Anymote server runs on 9551, then the Pairing
+Protocol server listens on 9552.
 
     googletv/scripts$ ./pair.py --host=NSZGT1-6131194.local --cert=cert.pem
 
