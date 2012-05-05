@@ -98,8 +98,8 @@ def main(argv):
   seconds = int(argv[1])
   d = task.deferLater(reactor, seconds, turn_off)
   d.addCallback(callback)
-  reactor.run()
   print 'Turning off TV after %s secs...' % seconds
+  reactor.run()
 
 
 if __name__ == '__main__':
