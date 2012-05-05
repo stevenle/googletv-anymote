@@ -214,6 +214,15 @@ class AnymoteProtocol(BaseProtocol):
     req.mouse_event_message.y_delta = y
     self._send_message(req)
 
+  def press(self, keycode):
+    """Sends a keycode down then up.
+
+    Args:
+      keycode: A Code from keycodes_pb2.
+    """
+    self.keycode(keycode, 'down')
+    self.keycode(keycode, 'up')
+
   def _send_message(self, message):
     """Sends a RequestMessage wrapped in a RemoteMessage.
 

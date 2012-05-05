@@ -36,6 +36,10 @@ Protocol server listens on 9552.
 
     googletv/scripts$ ./pair.py --host=NSZGT1-6131194.local --cert=cert.pem
 
+NOTE: The pairing protocol isn't 100% working yet because I haven't yet figured
+out how to encode the hex secret. In the meantime, you can use adb logcat
+to determine the encoded secret to get it working.
+
 ## Anymote Protocol ##
 
 After the certificate has been paired with Google TV, the certificate can be
@@ -58,4 +62,46 @@ def main():
 
 if __name__ == '__main__':
   main()
+```
+
+Example, turn off the TV after X seconds (requires
+[twisted](http://twistedmatrix.com/)):
+
+```python
+import os
+import sys
+import time
+import googletv
+from googletv.proto import keycodes_pb2
+from twisted.internet import reactor
+from twisted.internet import task
+
+HOST = 'NSZGT1-6131194.local'
+CERT = 'cert.pem'
+
+
+def turn_off():
+  with googletv.AnymoteProtocol(HOST, CERT) as gtv:
+    gtv.press(keycodes_pb2.KEYCODE_TV_POWER, 'down')
+  return 'Sent power signal to GTV'
+
+
+def callback(result):
+  print result
+  reactor.stop()
+
+
+def main(argv):
+  if len(argv) < 2:
+    sys.exit('Usage: %s <seconds>' % os.path.basename(argv[0]))
+
+  seconds = int(argv[1])
+  d = task.deferLater(reactor, seconds, turn_off)
+  d.addCallback(callback)
+  reactor.run()
+  print 'Turning off TV after %s secs...' % seconds
+
+
+if __name__ == '__main__':
+  main(sys.argv)
 ```
