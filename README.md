@@ -82,7 +82,7 @@ CERT = 'cert.pem'
 
 def turn_off():
   with googletv.AnymoteProtocol(HOST, CERT) as gtv:
-    gtv.press(keycodes_pb2.KEYCODE_TV_POWER, 'down')
+    gtv.press(keycodes_pb2.KEYCODE_TV_POWER)
   return 'Sent power signal to GTV'
 
 
