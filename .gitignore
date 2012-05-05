@@ -18,4 +18,4 @@ develop-eggs
 lib
 lib64
 
-scripts/certs.pem
+scripts/cert.pem
