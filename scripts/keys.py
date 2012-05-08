@@ -16,7 +16,7 @@
 
 """Sends some keys to a Google TV server."""
 
-__author__ = 'stevenle08@gmail.com (Steven Le)'
+__author__ = 'masterpi314@gmail.com (Adam Lohr)'
 
 import optparse
 import os
