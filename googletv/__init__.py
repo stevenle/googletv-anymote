@@ -21,9 +21,14 @@ __author__ = 'stevenle08@gmail.com (Steven Le)'
 import socket
 import ssl
 import struct
+import hashlib
+from itertools import dropwhile
 from googletv.proto import keycodes_pb2
 from googletv.proto import polo_pb2
 from googletv.proto import remote_pb2
+
+# Needed to parse certificates for secret hash
+import M2Crypto.X509
 
 ENCODING_TYPE_HEXADECIMAL = polo_pb2.Options.Encoding.ENCODING_TYPE_HEXADECIMAL
 ROLE_TYPE_INPUT = polo_pb2.Options.ROLE_TYPE_INPUT
@@ -32,6 +37,14 @@ ROLE_TYPE_INPUT = polo_pb2.Options.ROLE_TYPE_INPUT
 class Error(Exception):
   """Base class for all exceptions in this module."""
 
+class MessageTypeError(Error):
+  """Error thrown when we recieve a different message type than we expect"""
+  def __init__(self,message_type,expected_message_type):
+    self.message_type = message_type
+    self.expected_message_type = expected_message_type
+  def __str__(self):
+    return ("Expected message type " + str(self.expected_message_type) +
+      " but got " + str(self.message_type))
 
 class BaseProtocol(object):
   """Base class for protocols used by this module.
@@ -50,6 +63,7 @@ class BaseProtocol(object):
     self.sock = socket.socket()
     self.ssl = ssl.wrap_socket(self.sock, certfile=certfile)
     self.ssl.connect((self.host, self.port))
+    self.certfile = certfile
 
   def __enter__(self):
     return self
@@ -65,6 +79,13 @@ class BaseProtocol(object):
     sent = self.ssl.write(data_len + data)
     assert sent == len(data) + 4
     return sent
+
+  def recv(self):
+    len_raw = self.ssl.recv(4)
+    data_len = struct.unpack('!I',len_raw)[0]
+    data = self.ssl.recv(data_len)
+    assert len(data) == data_len
+    return data
 
 
 class PairingProtocol(BaseProtocol):
@@ -121,7 +142,7 @@ class PairingProtocol(BaseProtocol):
       code: Hex code string displayed by the Google TV.
     """
     req = polo_pb2.Secret()
-    req.secret = self._encode_hex_secret(code)
+    req.secret = self._make_secret_payload(self._encode_hex_secret(code))
     self._send_message(req, polo_pb2.OuterMessage.MESSAGE_TYPE_SECRET)
 
   def _encode_hex_secret(self, secret):
@@ -131,19 +152,54 @@ class PairingProtocol(BaseProtocol):
       secret: The hex code string displayed by the Google TV.
 
     Returns:
-      An encoded value that can be used in the Secret message.
+      Binary encoded form of hex secret
     """
-    # TODO(stevenle): Something further encodes the secret to a 64-char hex
-    # string. For now, use adb logcat to figure out what the expected challenge
-    # is. Eventually, make sure the encoding matches the server reference
-    # implementation:
-    #   http://code.google.com/p/google-tv-pairing-protocol/source/browse/src/com/google/polo/pairing/PoloChallengeResponse.java
     result = bytearray(len(secret) / 2)
     for i in xrange(len(result)):
       start_index = 2 * i
       end_index = 2 * (i + 1)
       result[i] = int(secret[start_index:end_index], 16)
     return bytes(result)
+
+  def _make_secret_payload(self,encoded_secret):
+    """Builds payload out of binary secret.
+
+      Args:
+        encoded_secret: binary form of secret (any type)
+
+      Returns:
+        Binary value to be used as the secret payload.
+    """
+    servercert = M2Crypto.X509.load_cert_der_string(self.ssl.getpeercert(True))
+    clientcert = M2Crypto.X509.load_cert(self.certfile)
+
+    def getKeyPair(c):
+        return [removeNullBytes(v[4:]) for v in c.get_pubkey().get_rsa().pub()]
+
+    def removeNullBytes(v):
+        return ''.join(dropwhile(lambda x:x=='\0',v))
+
+    sexp,smod = getKeyPair(servercert)
+    cexp,cmod = getKeyPair(clientcert)
+
+    # From reference implementation, secret payload is the SHA256 hash of:
+    #   client modulus
+    #   client exponent
+    #   server modulus
+    #   server exponent
+    #   nonce (second half of binary-encoded secret)
+
+    digest = hashlib.sha256()
+    digest.update(cmod)
+    digest.update(cexp)
+    digest.update(smod)
+    digest.update(sexp)
+
+    # Only the second half is used (the first half is redundant)
+    # TODO possibly check secret locally and offer chance to re-prompt user
+    digest.update(encoded_secret[len(encoded_secret)//2:])
+
+    return digest.digest()
 
   def _send_message(self, message, message_type):
     """Sends a message to the Google TV server.
@@ -162,6 +218,45 @@ class PairingProtocol(BaseProtocol):
     req.payload = message.SerializeToString()
     data = req.SerializeToString()
     return self.send(data)
+
+  def _recv_message(self):
+    data=self.recv()
+    req = polo_pb2.OuterMessage.FromString(data)
+    # TODO Check req.status and figure out how to deal with not OK
+    types = polo_pb2.OuterMessage
+    messageClass = {
+      types.MESSAGE_TYPE_CONFIGURATION: polo_pb2.Configuration,
+      types.MESSAGE_TYPE_CONFIGURATION_ACK: polo_pb2.ConfigurationAck,
+      types.MESSAGE_TYPE_OPTIONS: polo_pb2.Options,
+      types.MESSAGE_TYPE_PAIRING_REQUEST: polo_pb2.PairingRequest,
+      types.MESSAGE_TYPE_PAIRING_REQUEST_ACK: polo_pb2.PairingRequestAck,
+      types.MESSAGE_TYPE_SECRET: polo_pb2.Secret,
+      types.MESSAGE_TYPE_SECRET_ACK: polo_pb2.SecretAck,
+    }[req.type]
+    message = messageClass.FromString(req.payload)
+    return (message,req.type)
+
+  def _recv_and_check(self,expected_message_type):
+    message, message_type = self._recv_message()
+    if message_type != expected_message_type:
+        raise MessageTypeError(message_type,expected_message_type)
+    return message
+
+  def recv_pairing_request_ack(self):
+    return self._recv_and_check(
+      polo_pb2.OuterMessage.MESSAGE_TYPE_PAIRING_REQUEST_ACK)
+
+  def recv_configuration_ack(self):
+    return self._recv_and_check(
+      polo_pb2.OuterMessage.MESSAGE_TYPE_CONFIGURATION_ACK)
+
+  def recv_secret_ack(self):
+    return self._recv_and_check(
+      polo_pb2.OuterMessage.MESSAGE_TYPE_SECRET_ACK)
+
+  def recv_options(self):
+    return self._recv_and_check(
+      polo_pb2.OuterMessage.MESSAGE_TYPE_OPTIONS)
 
 
 class AnymoteProtocol(BaseProtocol):
