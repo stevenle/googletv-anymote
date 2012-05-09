@@ -92,16 +92,12 @@ def main():
     code = raw_input('Code from Google TV: ')
     gtv.send_secret(code)
 
-    def toHex(byteStr):
-        return ''.join( [ "%02X" % ord( x ) for x in byteStr ] )
-
+    to_hex = lambda byte_str: ''.join(['%02X' % ord(x) for x in byte_str])
     try:
-        secret=toHex(gtv.recv_secret_ack().secret)
-        print "Got secret (hash) back:",secret
+      secret = to_hex(gtv.recv_secret_ack().secret)
+      print 'Success! Received secret (hash) from Google TV: %s' % secret
     except:
-        print "Pairing failed"
-
-  print 'Done!'
+      print 'Pairing failed'
 
 
 if __name__ == '__main__':
