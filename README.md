@@ -80,14 +80,14 @@ HOST = 'NSZGT1-6131194.local'
 CERT = 'cert.pem'
 
 
-def turn_off():
-  with googletv.AnymoteProtocol(HOST, CERT) as gtv:
-    gtv.press(keycodes_pb2.KEYCODE_TV_POWER)
-  return 'Sent power signal to GTV'
+def turn_off(gtv):
+  gtv.press(keycodes_pb2.KEYCODE_TV_POWER)
+  print 'Sent power signal to GTV'
+  return gtv
 
 
-def callback(result):
-  print result
+def exit(gtv):
+  gtv.close()
   reactor.stop()
 
 
@@ -95,10 +95,12 @@ def main(argv):
   if len(argv) < 2:
     sys.exit('Usage: %s <seconds>' % os.path.basename(argv[0]))
 
+  gtv = googletv.AnymoteProtocol(HOST, CERT)
   seconds = int(argv[1])
-  d = task.deferLater(reactor, seconds, turn_off)
-  d.addCallback(callback)
+  d = task.deferLater(reactor, seconds, turn_off, gtv)
+  d.addCallback(exit)
   print 'Turning off TV after %s secs...' % seconds
+  gtv.connect()
   reactor.run()
 
 
