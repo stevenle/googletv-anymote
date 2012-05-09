@@ -172,7 +172,7 @@ class PairingProtocol(BaseProtocol):
     clientcert = M2Crypto.X509.load_cert(self.certfile)
 
     def get_key_pair(c):
-      return [removeNullBytes(v[4:]) for v in c.get_pubkey().get_rsa().pub()]
+      return [remove_null_bytes(v[4:]) for v in c.get_pubkey().get_rsa().pub()]
 
     def remove_null_bytes(v):
       return ''.join(itertools.dropwhile(lambda x: x=='\0', v))
