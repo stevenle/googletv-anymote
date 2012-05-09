@@ -22,12 +22,12 @@ import optparse
 import os
 import sys
 import googletv
-import googletv.proto.keycodes_pb2
+from googletv.proto import keycodes_pb2
 
 
 def get_parser():
   """Creates an optparse.OptionParser object used by this script."""
-  usage = 'Usage: %prog [--host=] [--port=9551] [--cert=cert.pem] <key> ...'
+  usage = 'Usage: %prog [--host=] [--port=9551] [--cert=cert.pem] <key ...>'
   parser = optparse.OptionParser(usage=usage)
 
   parser.add_option(
@@ -61,29 +61,23 @@ def main():
   if not os.path.isfile(cert):
     sys.exit('No cert file. Use --cert.')
 
-  def before(n,h):
-      loc=h.find(n)
-      if loc==-1:
-          return h
-      return h[:loc]
+  keys = []
+  for arg in args:
+    if ':' in arg:
+      keycode_name, direction = arg.split(':')
+      keycode = getattr(keycodes_pb2, 'KEYCODE_%s' % keycode_name)
+    else:
+      keycode = getattr(keycodes_pb2, 'KEYCODE_%s' % arg)
+      direction = None
+    keys.append((keycode, direction))
 
-  def after(n,h):
-      loc=h.find(n)
-      if loc==-1:
-          return h
-      return h[loc+1:]
-
-  keys = [(getattr(googletv.proto.keycodes_pb2,"KEYCODE_"
-      +before(":",arg.upper())),after(":",arg.upper()))
-          for arg in args]
   with googletv.AnymoteProtocol(host, cert, port=port) as gtv:
-    for (key,ud) in keys:
-      if ud=="U":
-        gtv.keycode(key,"up")
-      elif ud=="D":
-        gtv.keycode(key,"down")
+    for (keycode, direction) in keys:
+      if direction:
+        action = 'up' if direction.lower() == 'u' else 'down'
+        gtv.keycode(keycode, action)
       else:
-        gtv.press(key)
+        gtv.press(keycode)
 
 
 if __name__ == '__main__':

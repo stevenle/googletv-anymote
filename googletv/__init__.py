@@ -22,13 +22,12 @@ import socket
 import ssl
 import struct
 import hashlib
-from itertools import dropwhile
+import itertools
+# Needed to parse certificates for secret hash.
+import M2Crypto.X509
 from googletv.proto import keycodes_pb2
 from googletv.proto import polo_pb2
 from googletv.proto import remote_pb2
-
-# Needed to parse certificates for secret hash
-import M2Crypto.X509
 
 ENCODING_TYPE_HEXADECIMAL = polo_pb2.Options.Encoding.ENCODING_TYPE_HEXADECIMAL
 ROLE_TYPE_INPUT = polo_pb2.Options.ROLE_TYPE_INPUT
@@ -37,14 +36,10 @@ ROLE_TYPE_INPUT = polo_pb2.Options.ROLE_TYPE_INPUT
 class Error(Exception):
   """Base class for all exceptions in this module."""
 
+
 class MessageTypeError(Error):
-  """Error thrown when we recieve a different message type than we expect"""
-  def __init__(self,message_type,expected_message_type):
-    self.message_type = message_type
-    self.expected_message_type = expected_message_type
-  def __str__(self):
-    return ("Expected message type " + str(self.expected_message_type) +
-      " but got " + str(self.message_type))
+  """Error thrown when a different message type is received than expected."""
+
 
 class BaseProtocol(object):
   """Base class for protocols used by this module.
@@ -164,26 +159,26 @@ class PairingProtocol(BaseProtocol):
       result[i] = int(secret[start_index:end_index], 16)
     return bytes(result)
 
-  def _make_secret_payload(self,encoded_secret):
+  def _make_secret_payload(self, encoded_secret):
     """Builds payload out of binary secret.
 
-      Args:
-        encoded_secret: binary form of secret (any type)
+    Args:
+      encoded_secret: Binary form of secret (any type).
 
-      Returns:
-        Binary value to be used as the secret payload.
+    Returns:
+      Binary value to be used as the secret payload.
     """
     servercert = M2Crypto.X509.load_cert_der_string(self.ssl.getpeercert(True))
     clientcert = M2Crypto.X509.load_cert(self.certfile)
 
-    def getKeyPair(c):
-        return [removeNullBytes(v[4:]) for v in c.get_pubkey().get_rsa().pub()]
+    def get_key_pair(c):
+      return [removeNullBytes(v[4:]) for v in c.get_pubkey().get_rsa().pub()]
 
-    def removeNullBytes(v):
-        return ''.join(dropwhile(lambda x:x=='\0',v))
+    def remove_null_bytes(v):
+      return ''.join(itertools.dropwhile(lambda x: x=='\0', v))
 
-    sexp,smod = getKeyPair(servercert)
-    cexp,cmod = getKeyPair(clientcert)
+    sexp, smod = get_key_pair(servercert)
+    cexp, cmod = get_key_pair(clientcert)
 
     # From reference implementation, secret payload is the SHA256 hash of:
     #   client modulus
@@ -198,9 +193,9 @@ class PairingProtocol(BaseProtocol):
     digest.update(smod)
     digest.update(sexp)
 
-    # Only the second half is used (the first half is redundant)
-    # TODO possibly check secret locally and offer chance to re-prompt user
-    digest.update(encoded_secret[len(encoded_secret)//2:])
+    # Only the second half is used (the first half is redundant).
+    # TODO: Possibly check secret locally and offer chance to re-prompt user.
+    digest.update(encoded_secret[len(encoded_secret) // 2:])
 
     return digest.digest()
 
@@ -222,44 +217,62 @@ class PairingProtocol(BaseProtocol):
     data = req.SerializeToString()
     return self.send(data)
 
-  def _recv_message(self):
-    data=self.recv()
-    req = polo_pb2.OuterMessage.FromString(data)
-    # TODO Check req.status and figure out how to deal with not OK
-    types = polo_pb2.OuterMessage
-    messageClass = {
-      types.MESSAGE_TYPE_CONFIGURATION: polo_pb2.Configuration,
-      types.MESSAGE_TYPE_CONFIGURATION_ACK: polo_pb2.ConfigurationAck,
-      types.MESSAGE_TYPE_OPTIONS: polo_pb2.Options,
-      types.MESSAGE_TYPE_PAIRING_REQUEST: polo_pb2.PairingRequest,
-      types.MESSAGE_TYPE_PAIRING_REQUEST_ACK: polo_pb2.PairingRequestAck,
-      types.MESSAGE_TYPE_SECRET: polo_pb2.Secret,
-      types.MESSAGE_TYPE_SECRET_ACK: polo_pb2.SecretAck,
-    }[req.type]
-    message = messageClass.FromString(req.payload)
-    return (message,req.type)
+  def _recv_message(self, expected_type=None):
+    """Reads a message from Google TV.
 
-  def _recv_and_check(self,expected_message_type):
-    message, message_type = self._recv_message()
-    if message_type != expected_message_type:
-        raise MessageTypeError(message_type,expected_message_type)
+    Args:
+      expected_type: If provided, verifies that the inner message is of the
+          expected type.
+
+    Returns:
+      The inner message received from Google TV.
+
+    Raises:
+      AssertionError: If a bad status was received from Google TV.
+      MessageTypeError: If an expected_type was provided and the received type
+          does not match the expected.
+    """
+    types = polo_pb2.OuterMessage
+    message_types = {
+        types.MESSAGE_TYPE_CONFIGURATION: polo_pb2.Configuration,
+        types.MESSAGE_TYPE_CONFIGURATION_ACK: polo_pb2.ConfigurationAck,
+        types.MESSAGE_TYPE_OPTIONS: polo_pb2.Options,
+        types.MESSAGE_TYPE_PAIRING_REQUEST: polo_pb2.PairingRequest,
+        types.MESSAGE_TYPE_PAIRING_REQUEST_ACK: polo_pb2.PairingRequestAck,
+        types.MESSAGE_TYPE_SECRET: polo_pb2.Secret,
+        types.MESSAGE_TYPE_SECRET_ACK: polo_pb2.SecretAck,
+    }
+
+    data = self.recv()
+    req = polo_pb2.OuterMessage.FromString(data)
+    # TODO: Check req.status and figure out how to deal with not OK.
+    assert req.status == polo_pb2.OuterMessage.STATUS_OK
+
+    # If an expected_type is provided, then verify the received type.
+    if expected_type and expected_type != req.type:
+      expected = message_types[expected_type].__name__
+      actual = message_types[req.type].__name__
+      raise MessageTypeError('Expected %s but received %s' % (expected, actual))
+
+    message_type = message_types[req.type]
+    message = message_type.FromString(req.payload)
     return message
 
   def recv_pairing_request_ack(self):
-    return self._recv_and_check(
-      polo_pb2.OuterMessage.MESSAGE_TYPE_PAIRING_REQUEST_ACK)
+    return self._recv_message(
+        expected_type=polo_pb2.OuterMessage.MESSAGE_TYPE_PAIRING_REQUEST_ACK)
 
   def recv_configuration_ack(self):
-    return self._recv_and_check(
-      polo_pb2.OuterMessage.MESSAGE_TYPE_CONFIGURATION_ACK)
+    return self._recv_message(
+        expected_type=polo_pb2.OuterMessage.MESSAGE_TYPE_CONFIGURATION_ACK)
 
   def recv_secret_ack(self):
-    return self._recv_and_check(
-      polo_pb2.OuterMessage.MESSAGE_TYPE_SECRET_ACK)
+    return self._recv_message(
+        expected_type=polo_pb2.OuterMessage.MESSAGE_TYPE_SECRET_ACK)
 
   def recv_options(self):
-    return self._recv_and_check(
-      polo_pb2.OuterMessage.MESSAGE_TYPE_OPTIONS)
+    return self._recv_message(
+        expected_type=polo_pb2.OuterMessage.MESSAGE_TYPE_OPTIONS)
 
 
 class AnymoteProtocol(BaseProtocol):
