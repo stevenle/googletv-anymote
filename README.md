@@ -36,9 +36,8 @@ Protocol server listens on 9552.
 
     googletv/scripts$ ./pair.py --host=NSZGT1-6131194.local --cert=cert.pem
 
-NOTE: The pairing protocol isn't 100% working yet because I haven't yet figured
-out how to encode the hex secret. In the meantime, you can use adb logcat
-to determine the encoded secret to get it working.
+Once the cert is paired, you can use it to make all subsequent requests to the
+Anymote Protocol.
 
 ## Anymote Protocol ##
 
