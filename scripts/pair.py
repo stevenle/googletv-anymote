@@ -84,13 +84,23 @@ def main():
   with googletv.PairingProtocol(host, cert, port=port) as gtv:
     client_name = raw_input('Client name: ')
     gtv.send_pairing_request(client_name)
+    gtv.recv_pairing_request_ack()
     gtv.send_options()
+    gtv.recv_options()
     gtv.send_configuration()
+    gtv.recv_configuration_ack()
     code = raw_input('Code from Google TV: ')
     gtv.send_secret(code)
 
-  # TODO(stevenle): Need to verify a response from Google TV that indicates
-  # successful pairing.
+    def toHex(byteStr):
+        return ''.join( [ "%02X" % ord( x ) for x in byteStr ] )
+
+    try:
+        secret=toHex(gtv.recv_secret_ack().secret)
+        print "Got secret (hash) back:",secret
+    except:
+        print "Pairing failed"
+
   print 'Done!'
 
 
