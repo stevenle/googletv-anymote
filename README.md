@@ -2,6 +2,10 @@
 
 ## Installation ##
 
+    # Install M2Crypto (required for pairing script)
+    sudo easy_install m2crypto
+
+    # Install googletv-anymote
     sudo python setup.py install
 
 ## Pairing Protocol ##
