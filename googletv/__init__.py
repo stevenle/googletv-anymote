@@ -49,9 +49,9 @@ class BaseProtocol(object):
     self.port = port
     self.sock = socket.socket()
     self.ssl = ssl.wrap_socket(self.sock, certfile=certfile)
-    self.ssl.connect((self.host, self.port))
 
   def __enter__(self):
+    self.connect()
     return self
 
   def __exit__(self, unused_type, unused_val, unused_traceback):
@@ -59,6 +59,9 @@ class BaseProtocol(object):
 
   def close(self):
     self.ssl.close()
+
+  def connect(self):
+    self.ssl.connect((self.host, self.port))
 
   def send(self, data):
     data_len = struct.pack('!I', len(data))

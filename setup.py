@@ -21,15 +21,15 @@ __author__ = 'stevenle08@gmail.com (Steven Le)'
 from distutils import core
 
 DESCRIPTION = 'Python implementation of Pairing Protocol and Remote Protocol'
-VERSION = '0.1a'
+VERSION = '0.2a'
 PACKAGES = (
     'googletv',
     'googletv.proto',
 )
-NAME = 'Google TV'
+NAME = 'Google TV Anymote'
 AUTHOR = 'Steven Le'
 AUTHOR_EMAIL = 'stevenle08@gmail.com'
-URL = 'https://github.com/stevenle/googletv'
+URL = 'https://github.com/stevenle/googletv-anymote'
 
 
 def main():
