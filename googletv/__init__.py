@@ -80,7 +80,7 @@ class BaseProtocol(object):
 
   def recv(self):
     len_raw = self.ssl.recv(4)
-    data_len = struct.unpack('!I',len_raw)[0]
+    data_len = struct.unpack('!I', len_raw)[0]
     data = self.ssl.recv(data_len)
     assert len(data) == data_len
     return data
@@ -186,7 +186,6 @@ class PairingProtocol(BaseProtocol):
     #   server modulus
     #   server exponent
     #   nonce (second half of binary-encoded secret)
-
     digest = hashlib.sha256()
     digest.update(cmod)
     digest.update(cexp)
@@ -194,9 +193,7 @@ class PairingProtocol(BaseProtocol):
     digest.update(sexp)
 
     # Only the second half is used (the first half is redundant).
-    # TODO: Possibly check secret locally and offer chance to re-prompt user.
     digest.update(encoded_secret[len(encoded_secret) // 2:])
-
     return digest.digest()
 
   def _send_message(self, message, message_type):
