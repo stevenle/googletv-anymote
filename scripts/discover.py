@@ -27,7 +27,6 @@ Requires pybonjour:
 __author__ = 'stevenle08@gmail.com (Steven Le)'
 
 import select
-import sys
 import pybonjour
 
 REGTYPE  = '_anymote._tcp'
@@ -43,6 +42,7 @@ def BrowseCallback(sdRef, flags, interfaceIndex, errorCode, serviceName,
 
     def ResolveCallback(sdRef, flags, interfaceIndex, errorCode, fullname,
                         hosttarget, port, txtRecord):
+      global resolved
       if errorCode == pybonjour.kDNSServiceErr_NoError:
         print 'Resolved service:'
         print '  host =', hosttarget
