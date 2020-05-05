@@ -1,4 +1,7 @@
-# Python client for the Google TV Pairing and Anymote protocols. #
+# DEPRECATED: Python client for the Google TV Pairing and Anymote protocols. #
+
+Google no longer uses the Anymote protocol for its devices. This repo may still
+work for older Google TV devices, but use at your own risk.
 
 ## Installation ##
 
